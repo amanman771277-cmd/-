@@ -78,36 +78,41 @@ export default function ItemModal({ item, isOpen, onClose, onSave }: ItemModalPr
     }));
   };
 
+  const uploadToCloudinary = async (file: File) => {
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", "Tinsae");
+
+      const res = await fetch("https://api.cloudinary.com/v1_1/du5fpqadb/image/upload", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Failed to upload image to Cloudinary");
+      }
+
+      return data.secure_url;
+    } catch (error: any) {
+      console.error("Cloudinary Upload Error:", error);
+      alert(`Image Upload Error: ${error.message}`);
+      return null;
+    }
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsUploading(true);
-    
-    // Create FormData for Cloudinary
-    const formDataCloudinary = new FormData();
-    formDataCloudinary.append('file', file);
-    formDataCloudinary.append('upload_preset', 'Tinsae');
-
-    try {
-      const response = await fetch('https://api.cloudinary.com/v1_1/du5fpqadb/image/upload', {
-        method: 'POST',
-        body: formDataCloudinary,
-      });
-      
-      const data = await response.json();
-      
-      if (data.secure_url) {
-        setFormData(prev => ({ ...prev, image_url: data.secure_url }));
-      } else {
-        alert('Failed to upload image. Please try again.');
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      alert('Error uploading image.');
-    } finally {
-      setIsUploading(false);
+    const secureUrl = await uploadToCloudinary(file);
+    if (secureUrl) {
+      setFormData(prev => ({ ...prev, image_url: secureUrl }));
     }
+    setIsUploading(false);
   };
 
   const handleSubmit = (e: React.FormEvent) => {

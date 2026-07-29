@@ -1,24 +1,45 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit2, Trash2, LogOut, LayoutDashboard, Search, Eye, EyeOff } from 'lucide-react';
+import { collection, getDocs, doc, deleteDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { MenuItem } from '../types';
 import { mockMenuItems } from '../data';
 import ItemModal from './ItemModal';
+import { db } from '../lib/firebase';
 
 export default function AdminDashboard() {
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(mockMenuItems);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
-  // Load from local storage on mount (simulating DB)
   useEffect(() => {
-    const saved = localStorage.getItem('restaurant_menu_items');
-    if (saved) {
-      setMenuItems(JSON.parse(saved));
-    }
+    const fetchItems = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'menu_items'));
+        if (querySnapshot.empty) {
+          // If empty, initialize with mock data
+          const items: MenuItem[] = [];
+          for (const item of mockMenuItems) {
+            await setDoc(doc(db, 'menu_items', item.id), item);
+            items.push(item);
+          }
+          setMenuItems(items);
+        } else {
+          const items = querySnapshot.docs.map(doc => doc.data() as MenuItem);
+          setMenuItems(items);
+        }
+      } catch (error) {
+        console.error("Error fetching items:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchItems();
   }, []);
 
   const handleLogout = () => {
@@ -29,12 +50,16 @@ export default function AdminDashboard() {
     setItemToDelete(id);
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (itemToDelete) {
-      const updatedList = menuItems.filter(item => item.id !== itemToDelete);
-      setMenuItems(updatedList);
-      localStorage.setItem('restaurant_menu_items', JSON.stringify(updatedList));
-      setItemToDelete(null);
+      try {
+        await deleteDoc(doc(db, 'menu_items', itemToDelete));
+        const updatedList = menuItems.filter(item => item.id !== itemToDelete);
+        setMenuItems(updatedList);
+        setItemToDelete(null);
+      } catch (error) {
+        console.error("Error deleting item:", error);
+      }
     }
   };
 
@@ -42,23 +67,38 @@ export default function AdminDashboard() {
     setItemToDelete(null);
   };
 
-  const handleToggleAvailability = (id: string) => {
-    const updatedList = menuItems.map(item => 
-      item.id === id ? { ...item, is_available: !item.is_available } : item
-    );
-    setMenuItems(updatedList);
-    localStorage.setItem('restaurant_menu_items', JSON.stringify(updatedList));
+  const handleToggleAvailability = async (id: string) => {
+    try {
+      const itemToUpdate = menuItems.find(item => item.id === id);
+      if (itemToUpdate) {
+        const newAvailability = !itemToUpdate.is_available;
+        await updateDoc(doc(db, 'menu_items', id), {
+          is_available: newAvailability
+        });
+        
+        const updatedList = menuItems.map(item => 
+          item.id === id ? { ...item, is_available: newAvailability } : item
+        );
+        setMenuItems(updatedList);
+      }
+    } catch (error) {
+      console.error("Error updating availability:", error);
+    }
   };
 
-  const handleSaveItem = (item: MenuItem) => {
-    let updatedList;
-    if (editingItem) {
-      updatedList = menuItems.map(i => i.id === item.id ? item : i);
-    } else {
-      updatedList = [item, ...menuItems];
+  const handleSaveItem = async (item: MenuItem) => {
+    try {
+      await setDoc(doc(db, 'menu_items', item.id), item);
+      let updatedList;
+      if (editingItem) {
+        updatedList = menuItems.map(i => i.id === item.id ? item : i);
+      } else {
+        updatedList = [item, ...menuItems];
+      }
+      setMenuItems(updatedList);
+    } catch (error) {
+      console.error("Error saving item:", error);
     }
-    setMenuItems(updatedList);
-    localStorage.setItem('restaurant_menu_items', JSON.stringify(updatedList));
   };
 
   const openNewModal = () => {
@@ -161,70 +201,79 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-white/5">
-                  {filteredItems.map((item) => (
-                    <tr key={item.id} className="hover:bg-white/[0.02] transition-colors group">
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-10 w-10">
-                            <img className="h-10 w-10 rounded-lg object-cover border border-white/10" src={item.image_url} alt="" />
-                          </div>
-                          <div className="ml-4">
-                            <div className="text-sm font-medium text-slate-200">{item.name.en}</div>
-                            <div className="text-[10px] text-slate-500 italic">{item.name.am}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap">
-                        <span className="px-2.5 py-1 inline-flex text-[10px] font-bold uppercase tracking-wider rounded border border-white/10 bg-white/5 text-slate-300">
-                          {item.category}
-                        </span>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-mono">
-                        {item.price.toFixed(2)}
-                      </td>
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap text-center">
-                        <button 
-                          onClick={() => handleToggleAvailability(item.id)}
-                          className="focus:outline-none"
-                        >
-                          {item.is_available ? (
-                            <div className="inline-flex w-10 h-5 bg-amber-500/20 rounded-full p-1 items-center justify-end border border-amber-500/20">
-                              <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
-                            </div>
-                          ) : (
-                            <div className="inline-flex w-10 h-5 bg-white/10 rounded-full p-1 items-center border border-white/5">
-                              <div className="w-3 h-3 bg-slate-600 rounded-full"></div>
-                            </div>
-                          )}
-                        </button>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex justify-end gap-2">
-                          <button 
-                            onClick={() => openEditModal(item)}
-                            className="flex items-center gap-1 text-slate-300 hover:text-amber-500 bg-white/5 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors border border-transparent hover:border-white/10"
-                            title="Edit"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                            <span className="hidden sm:inline text-xs font-bold uppercase tracking-widest">Edit</span>
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteItem(item.id)}
-                            className="flex items-center gap-1 text-red-400 hover:text-red-500 bg-red-500/10 px-3 py-2 rounded-lg hover:bg-red-500/20 transition-colors border border-transparent hover:border-red-500/20"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                            <span className="hidden sm:inline text-xs font-bold uppercase tracking-widest">Delete</span>
-                          </button>
-                        </div>
+                  {isLoading ? (
+                    <tr>
+                      <td colSpan={5} className="px-4 md:px-6 py-12 text-center text-slate-400">
+                        <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-amber-500 mb-2"></div>
+                        <p className="text-sm">Loading items...</p>
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    filteredItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-white/[0.02] transition-colors group">
+                        <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="flex-shrink-0 h-10 w-10">
+                              <img className="h-10 w-10 rounded-lg object-cover border border-white/10" src={item.image_url} alt="" />
+                            </div>
+                            <div className="ml-4">
+                              <div className="text-sm font-medium text-slate-200">{item.name.en}</div>
+                              <div className="text-[10px] text-slate-500 italic">{item.name.am}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 md:px-6 py-4 whitespace-nowrap">
+                          <span className="px-2.5 py-1 inline-flex text-[10px] font-bold uppercase tracking-wider rounded border border-white/10 bg-white/5 text-slate-300">
+                            {item.category}
+                          </span>
+                        </td>
+                        <td className="px-4 md:px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-mono">
+                          {item.price.toFixed(2)}
+                        </td>
+                        <td className="px-4 md:px-6 py-4 whitespace-nowrap text-center">
+                          <button 
+                            onClick={() => handleToggleAvailability(item.id)}
+                            className="focus:outline-none"
+                          >
+                            {item.is_available ? (
+                              <div className="inline-flex w-10 h-5 bg-amber-500/20 rounded-full p-1 items-center justify-end border border-amber-500/20">
+                                <div className="w-3 h-3 bg-amber-500 rounded-full"></div>
+                              </div>
+                            ) : (
+                              <div className="inline-flex w-10 h-5 bg-white/10 rounded-full p-1 items-center border border-white/5">
+                                <div className="w-3 h-3 bg-slate-600 rounded-full"></div>
+                              </div>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-4 md:px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                          <div className="flex justify-end gap-2">
+                            <button 
+                              onClick={() => openEditModal(item)}
+                              className="flex items-center gap-1 text-slate-300 hover:text-amber-500 bg-white/5 px-3 py-2 rounded-lg hover:bg-white/10 transition-colors border border-transparent hover:border-white/10"
+                              title="Edit"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                              <span className="hidden sm:inline text-xs font-bold uppercase tracking-widest">Edit</span>
+                            </button>
+                            <button 
+                              onClick={() => handleDeleteItem(item.id)}
+                              className="flex items-center gap-1 text-red-400 hover:text-red-500 bg-red-500/10 px-3 py-2 rounded-lg hover:bg-red-500/20 transition-colors border border-transparent hover:border-red-500/20"
+                              title="Delete"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              <span className="hidden sm:inline text-xs font-bold uppercase tracking-widest">Delete</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
             
-            {filteredItems.length === 0 && (
+            {!isLoading && filteredItems.length === 0 && (
               <div className="text-center py-20 flex-1 flex flex-col items-center justify-center">
                 <p className="text-slate-500 font-mono text-sm">No items found matching your search.</p>
               </div>

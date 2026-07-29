@@ -1,26 +1,43 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, PhoneCall, MessageCircle, ArrowUpDown } from 'lucide-react';
+import { collection, getDocs } from 'firebase/firestore';
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
 import MenuCard from '../components/MenuCard';
 import { mockMenuItems } from '../data';
 import { Category, MenuItem } from '../types';
 import { useLanguage } from '../context/LanguageContext';
+import { db } from '../lib/firebase';
 
 const CATEGORIES: Category[] = ['All', 'Burger', 'Pizza', 'Fast Food', 'Drinks', 'Desserts'];
 
 export default function CustomerView() {
   const { language, t } = useLanguage();
-  const [menuItems, setMenuItems] = useState<MenuItem[]>(mockMenuItems);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
   const [activeCategory, setActiveCategory] = useState<Category>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'default' | 'asc' | 'desc'>('default');
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const saved = localStorage.getItem('restaurant_menu_items');
-    if (saved) {
-      setMenuItems(JSON.parse(saved));
-    }
+    const fetchItems = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'menu_items'));
+        if (querySnapshot.empty) {
+          setMenuItems(mockMenuItems);
+        } else {
+          const items = querySnapshot.docs.map(doc => doc.data() as MenuItem);
+          setMenuItems(items);
+        }
+      } catch (error) {
+        console.error("Error fetching items:", error);
+        setMenuItems(mockMenuItems);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchItems();
   }, []);
 
   const filteredItems = useMemo(() => {
@@ -131,7 +148,12 @@ export default function CustomerView() {
         </div>
 
         {/* Menu Grid */}
-        {filteredItems.length > 0 ? (
+        {isLoading ? (
+          <div className="text-center py-20 bg-[#121214] rounded-[2.5rem] border border-dashed border-white/10">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500 mb-4"></div>
+            <p className="text-slate-400 text-lg">{t('Loading menu...', 'ማውጫውን በመጫን ላይ...')}</p>
+          </div>
+        ) : filteredItems.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {filteredItems.map(item => (
               <MenuCard key={item.id} item={item} />
