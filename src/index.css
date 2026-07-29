@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+@theme {
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+}
+
+body {
+  @apply bg-[#0A0A0B] text-slate-100 font-sans;
+}
