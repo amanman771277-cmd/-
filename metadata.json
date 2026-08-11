@@ -1,5 +1,5 @@
 {
-  "name": "Tinsae Burger & Pizza",
+  "name": "Tinsae Burger and pizza",
   "description": "A modern restaurant menu with customer view and admin dashboard.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
