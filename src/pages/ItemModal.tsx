@@ -7,18 +7,20 @@ interface ItemModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (item: MenuItem) => void;
+  activeSpecialsCount: number;
 }
 
 const CATEGORIES: Category[] = ['Burger', 'Pizza', 'Fast Food', 'Drinks', 'Desserts'];
 
-export default function ItemModal({ item, isOpen, onClose, onSave }: ItemModalProps) {
+export default function ItemModal({ item, isOpen, onClose, onSave, activeSpecialsCount }: ItemModalProps) {
   const [formData, setFormData] = useState<Partial<MenuItem>>({
     name: { en: '', am: '' },
-    category: 'Main Course',
+    category: 'Burger',
     price: 0,
     description: { en: '', am: '' },
     image_url: '',
     is_available: true,
+    is_daily_special: false,
     tags: [],
   });
 
@@ -31,11 +33,12 @@ export default function ItemModal({ item, isOpen, onClose, onSave }: ItemModalPr
     } else {
       setFormData({
         name: { en: '', am: '' },
-        category: 'Main Course',
+        category: 'Burger',
         price: 0,
         description: { en: '', am: '' },
         image_url: '',
         is_available: true,
+        is_daily_special: false,
         tags: [],
       });
     }
@@ -115,6 +118,25 @@ export default function ItemModal({ item, isOpen, onClose, onSave }: ItemModalPr
     setIsUploading(false);
   };
 
+  const handleDailySpecialChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const isChecked = e.target.checked;
+    
+    // If the item is being checked and it wasn't already checked
+    if (isChecked && !formData.is_daily_special) {
+      // Check if we're creating a new item or editing an existing one
+      const isCurrentlySpecial = item?.is_daily_special;
+      const currentCount = activeSpecialsCount;
+      
+      // If this item was not already a special, checking it will increase the count
+      if (!isCurrentlySpecial && currentCount >= 3) {
+        alert('You can only highlight up to 3 Daily Specials. / ከ3 በላይ የዕለቱ ልዩ ምግቦችን መምረጥ አይችሉም።');
+        return;
+      }
+    }
+    
+    setFormData(prev => ({ ...prev, is_daily_special: isChecked }));
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name?.en || !formData.price) {
@@ -130,6 +152,7 @@ export default function ItemModal({ item, isOpen, onClose, onSave }: ItemModalPr
       description: formData.description as any,
       image_url: formData.image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&q=80&w=800',
       is_available: formData.is_available ?? true,
+      is_daily_special: formData.is_daily_special ?? false,
       tags: formData.tags || [],
       created_at: item?.created_at || new Date().toISOString(),
     };
@@ -286,18 +309,34 @@ export default function ItemModal({ item, isOpen, onClose, onSave }: ItemModalPr
             </div>
             
             {/* Availability */}
-            <div className="flex items-center p-4 bg-[#1A1A1C] border border-white/5 rounded-lg">
-              <input
-                id="is_available"
-                name="is_available"
-                type="checkbox"
-                checked={formData.is_available}
-                onChange={(e) => setFormData(prev => ({ ...prev, is_available: e.target.checked }))}
-                className="h-4 w-4 text-amber-500 focus:ring-amber-500/50 bg-[#121214] border-white/20 rounded accent-amber-500"
-              />
-              <label htmlFor="is_available" className="ml-3 block text-sm text-slate-300 font-medium">
-                Item is currently available in stock
-              </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex items-center p-4 bg-[#1A1A1C] border border-white/5 rounded-lg">
+                <input
+                  id="is_available"
+                  name="is_available"
+                  type="checkbox"
+                  checked={formData.is_available}
+                  onChange={(e) => setFormData(prev => ({ ...prev, is_available: e.target.checked }))}
+                  className="h-4 w-4 text-amber-500 focus:ring-amber-500/50 bg-[#121214] border-white/20 rounded accent-amber-500"
+                />
+                <label htmlFor="is_available" className="ml-3 block text-sm text-slate-300 font-medium">
+                  Item is currently in stock
+                </label>
+              </div>
+
+              <div className="flex items-center p-4 bg-[#1A1A1C] border border-white/5 rounded-lg">
+                <input
+                  id="is_daily_special"
+                  name="is_daily_special"
+                  type="checkbox"
+                  checked={formData.is_daily_special || false}
+                  onChange={handleDailySpecialChange}
+                  className="h-4 w-4 text-amber-500 focus:ring-amber-500/50 bg-[#121214] border-white/20 rounded accent-amber-500"
+                />
+                <label htmlFor="is_daily_special" className="ml-3 block text-sm text-slate-300 font-medium">
+                  Daily Special
+                </label>
+              </div>
             </div>
 
             <div className="mt-5 sm:mt-6 sm:grid sm:grid-cols-2 sm:gap-3 sm:grid-flow-row-dense pt-5 border-t border-white/10">

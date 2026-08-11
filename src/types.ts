@@ -13,6 +13,7 @@ export interface MenuItem {
   description: LocalizedString;
   image_url: string;
   is_available: boolean;
+  is_daily_special?: boolean;
   tags: string[];
   created_at: string;
 }

@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Search, PhoneCall, MessageCircle, ArrowUpDown } from 'lucide-react';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
 import MenuCard from '../components/MenuCard';
@@ -20,28 +20,37 @@ export default function CustomerView() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const fetchItems = async () => {
-      try {
-        const querySnapshot = await getDocs(collection(db, 'menu_items'));
+    const unsubscribe = onSnapshot(
+      collection(db, 'menu_items'),
+      (querySnapshot) => {
         if (querySnapshot.empty) {
           setMenuItems(mockMenuItems);
         } else {
           const items = querySnapshot.docs.map(doc => doc.data() as MenuItem);
           setMenuItems(items);
         }
-      } catch (error) {
+        setIsLoading(false);
+      },
+      (error) => {
         console.error("Error fetching items:", error);
         setMenuItems(mockMenuItems);
-      } finally {
         setIsLoading(false);
       }
-    };
+    );
     
-    fetchItems();
+    return () => unsubscribe();
   }, []);
 
+  const specialItems = useMemo(() => {
+    return menuItems.filter(item => item.is_daily_special && item.is_available).slice(0, 3);
+  }, [menuItems]);
+
   const filteredItems = useMemo(() => {
+    const specialItemIds = new Set(specialItems.map(i => i.id));
+    
     let result = menuItems.filter((item) => {
+      if (specialItemIds.has(item.id)) return false;
+
       const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
@@ -60,7 +69,7 @@ export default function CustomerView() {
     }
 
     return result;
-  }, [activeCategory, searchQuery, menuItems, sortOrder]);
+  }, [activeCategory, searchQuery, menuItems, sortOrder, specialItems]);
 
   const handleSortToggle = () => {
     setSortOrder(prev => {
@@ -70,8 +79,6 @@ export default function CustomerView() {
     });
   };
 
-  const specialItems = menuItems.filter(item => item.tags.some(tag => tag.includes("Special")) && item.is_available);
-
   return (
     <div className="min-h-screen bg-[#0A0A0B] font-sans">
       <Navbar />
@@ -80,13 +87,26 @@ export default function CustomerView() {
       <main id="menu-section" className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         
         {/* Today's Specials */}
-        {specialItems.length > 0 && searchQuery === '' && activeCategory === 'All' && (
+        {specialItems.length > 0 && (
           <div className="mb-16">
-            <h2 className="text-3xl font-serif font-bold text-slate-100 mb-2">{t('Today\'s Specials', 'የዕለቱ ልዩ ምግቦች')}</h2>
-            <div className="w-20 h-1 bg-amber-500 rounded-full mb-8"></div>
+            <div className="flex items-center gap-3 mb-6">
+              <span className="text-2xl">✨</span>
+              <h2 className="text-2xl font-bold font-serif text-amber-500 tracking-tight">
+                {t("Today's Specials", 'የዛሬ ልዩ')}
+              </h2>
+              <div className="flex-1 h-px bg-gradient-to-r from-amber-500/20 to-transparent ml-4"></div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {specialItems.map(item => (
-                <MenuCard key={`special-${item.id}`} item={item} />
+                <div key={`special-${item.id}`} className="relative group">
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-amber-500 to-amber-300 rounded-3xl opacity-50 blur-sm group-hover:opacity-70 transition-opacity duration-300"></div>
+                  <div className="relative h-full">
+                    <MenuCard item={item} />
+                    <div className="absolute top-4 left-4 z-10 bg-amber-500 text-black px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-1.5">
+                      ⭐ {t("TODAY'S SPECIAL", 'የዛሬ ልዩ')}
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </div>

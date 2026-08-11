@@ -11,6 +11,7 @@
         { "name": "description", "type": "map" },
         { "name": "image_url", "type": "string" },
         { "name": "is_available", "type": "boolean" },
+        { "name": "is_daily_special", "type": "boolean" },
         { "name": "tags", "type": "array" },
         { "name": "created_at", "type": "string" }
       ]

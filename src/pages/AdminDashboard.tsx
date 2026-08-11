@@ -116,6 +116,8 @@ export default function AdminDashboard() {
     item.category.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const activeSpecialsCount = menuItems.filter(item => item.is_daily_special).length;
+
   return (
     <div className="min-h-screen bg-[#0A0A0B] text-slate-100 flex font-sans">
       {/* Sidebar */}
@@ -304,6 +306,7 @@ export default function AdminDashboard() {
         item={editingItem}
         onClose={() => setIsModalOpen(false)}
         onSave={handleSaveItem}
+        activeSpecialsCount={activeSpecialsCount}
       />
 
       {/* Delete Confirmation Modal */}
